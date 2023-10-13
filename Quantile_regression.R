@@ -17,7 +17,7 @@ df<-read.csv("df.csv")
 ggplot(data=df) + geom_point(aes(x=Elevation_update, y=Yield..Kgs.acre.))
 
 
-ggplot(data=df) + geom_point(aes(x=aspect, y=Yield..Kgs.acre.))
+ggplot(data=df2) + geom_point(aes(x=Elevation_update, y=(Yield..Kgs.acre.)))
 
 
 ##2. Remove two apparent outliers - need to check this again though
@@ -25,20 +25,45 @@ ggplot(data=df) + geom_point(aes(x=aspect, y=Yield..Kgs.acre.))
 df1<-subset(df, Elevation_update>500)
 df2<-subset(df1, Yield..Kgs.acre.<7999)
 
+#2,5 maybe try also removing duplicated observations per village OR summarisng by village
+library(dplyr)
+df2_agg<-df2 %>% group_by(Village) %>% summarise(mean_yield=mean(Yield..Kgs.acre.),
+                                                 mean_elevation=mean(Elevation_update))
+
+
+plot(df2_agg$mean_elevation, df2_agg$mean_yield)
+
+
+##try remove duplicate values
+
+df2_uniq<-df2[!duplicated(df2$Yield..Kgs.acre.), ]
+
+plot(df2_uniq$Elevation_update, df2_uniq$Yield..Kgs.acre.)
+
+
+df3<-df2 %>% group_by(Village) %>% do(data.frame(.[!duplicated(.$Yield..Kgs.acre.), ]))
+
+plot(df3$Elevation_update, df3$Yield..Kgs.acre.)
 
 ##3. Qunatile regression
 
-quant_seq<-seq(from=0.1,to=0.9,by=0.1)
+quant_seq<-seq(from=0.1,to=0.95,by=0.05)
 quant_seq2<-seq(from=0.25,to=0.75,by=0.25)
 
 library(splines)
 
-f <- rq((Yield..Kgs.acre.)~ ns(Age, df=4), data=df2, tau=quant_seq)
+f <- rq((Yield..Kgs.acre.)~ ns(Elevation_update, df=1), data=df3, tau=quant_seq)
+summary(f)
+
+f <- rq((mean_yield)~ ns(mean_elevation, df=3), data=df2_agg, tau=quant_seq)
+summary(f)
+
+f <- rq((Yield..Kgs.acre.)~ ns(Elevation_update, df=4), data=df2, tau=quant_seq)
 summary(f)
 
 AIC(f)
 
-summ <- summary(f, se = "boot", R=100)
+summ <- summary(f, se = "boot", R=1000)
 summ
 
 Xp <- predict(f,df2)
@@ -60,6 +85,9 @@ ggplot(data=jd2) + geom_point(aes(x=df2.Elevation_update, y=df2.Yield..Kgs.acre.
   geom_line(aes(x=df2.Elevation_update, y=tau..0.3, col="red")) +
   geom_line(aes(x=df2.Elevation_update, y=tau..0.2, col="red")) +
   geom_line(aes(x=df2.Elevation_update, y=tau..0.1, col="red"))
+
+##With unique data only
+
 
 
 
@@ -152,14 +180,14 @@ f_q <- rq((Yield..Kgs.acre.)~ ns(Elevation_update, df=4), data=df2, tau=0.9)
 Xp <- predict(f,df2)
 
 
-jd2<-data.frame(Xp, df2$Elevation_update, df2$Yield..Kgs.acre.)
+jd2<-data.frame(Xp, df2$Elevation_update, df2$Yield..Kgs.acre., df2$Village)
 plot(jd2$df2.Elevation_update, jd2$tau..0.9)
 
 ##
 
 library(ggplot2)
 
-ggplot(data=jd2) + geom_point(aes(x=df2.Elevation_update, y=df2.Yield..Kgs.acre.)) +
+ggplot(data=jd2) + geom_point(aes(x=df2.Elevation_update, y=df2.Yield..Kgs.acre., col=df2.Village)) +
   geom_line(aes(x=df2.Elevation_update, y=tau..0.9, col="red")) +
   geom_line(aes(x=df2.Elevation_update, y=tau..0.8, col="red")) +
   geom_line(aes(x=df2.Elevation_update, y=tau..0.7, col="red")) +
